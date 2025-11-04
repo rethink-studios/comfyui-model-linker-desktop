@@ -1,10 +1,12 @@
-# ComfyUI Model Linker Extension
+﻿# ComfyUI Model Linker Extension
 
 A ComfyUI extension that helps users relink missing models in workflows using fuzzy matching.
 
 ## Demo
 
-<video src="demo.mp4" controls width="100%"></video>
+ðŸ“¹ **[Watch Demo Video](https://github.com/kianxyzw/comfyui-model-linker/raw/main/demo.mp4)**
+
+*The demo video shows the Model Linker in action, automatically resolving missing models in a workflow.*
 
 ![Model Linker Interface](model-linker.png)
 
@@ -19,13 +21,13 @@ A ComfyUI extension that helps users relink missing models in workflows using fu
 ## Installation
 
 1. Clone or download this repository
-2. Place it in your ComfyUI `custom_nodes/` directory
+2. Place it in your ComfyUI custom_nodes/ directory
 3. Restart ComfyUI
 
 ## Usage
 
 1. Open a workflow with missing models
-2. Click the "🔗 Model Linker" button in ComfyUI's top menu bar
+2. Click the "ðŸ”— Model Linker" button in ComfyUI's top menu bar
 3. Review missing models and their suggested matches 
 4. Click "Resolve" for individual models or "Auto-Resolve 100% Matches" for perfect matches
 5. Save your workflow when ready
@@ -33,8 +35,7 @@ A ComfyUI extension that helps users relink missing models in workflows using fu
 ## Features
 
 - **Subgraph Support**: Automatically detects and handles missing models inside subgraphs
-- **Smart Matching**: Shows 100% confidence matches when available, otherwise shows best matches (≥70% confidence)
+- **Smart Matching**: Shows 100% confidence matches when available, otherwise shows best matches (â‰¥70% confidence)
 - **Fuzzy Matching**: Uses intelligent similarity scoring to find model files even with different naming
 - **Auto-Resolve**: One-click resolution for all perfect matches
 
- 

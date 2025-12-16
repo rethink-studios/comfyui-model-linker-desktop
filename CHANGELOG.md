@@ -32,7 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced UI for "No Good Matches" section (< 75% confidence)
 - Better visual hierarchy with download controls
 - More intuitive workflow for finding and installing missing models
-- New demo video showcasing v2.2.0 features (18 MB, down from 78 MB)
 
 ### Fixed
 - **CRITICAL**: Prevented partial downloads from being detected as valid models

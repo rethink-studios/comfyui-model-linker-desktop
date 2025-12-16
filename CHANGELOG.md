@@ -5,6 +5,39 @@ All notable changes to ComfyUI Model Linker - Desktop Edition will be documented
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-12-16
+
+### Added - Download Functionality
+- **Direct Model Downloads**: Download missing models from any URL with progress tracking
+- **Real-Time Progress Bars**: Visual progress showing percentage, MB downloaded/total
+- **Cancel Downloads**: Stop downloads mid-transfer with "Cancel" button
+- **Search Integration**: Quick search buttons for CivitAI and HuggingFace
+- **URL Input Field**: Paste any direct download URL
+- **Progress Polling**: Backend polls download progress every 500ms
+- **Auto-Installation**: Downloads automatically place in correct model directories
+
+### Added - Safety Features
+- **Temporary File Protection**: Downloads to `.tmp` files first
+- **Atomic Rename**: Only renames to final name when 100% complete
+- **Partial File Cleanup**: Cancelled/failed downloads cleaned up instantly
+- **No Corrupted Models**: ComfyUI never sees incomplete downloads
+- **Size Verification**: Validates downloaded size matches expected size
+
+### Added - API Endpoints
+- `POST /model_linker/download` - Start model download
+- `GET /model_linker/download/{id}/progress` - Get download progress
+- `POST /model_linker/download/{id}/cancel` - Cancel active download
+
+### Improved
+- Enhanced UI for "No Good Matches" section (< 70% confidence)
+- Better visual hierarchy with download controls
+- More intuitive workflow for finding and installing missing models
+
+### Fixed
+- **CRITICAL**: Prevented partial downloads from being detected as valid models
+- Downloads now use `.tmp` extension during transfer
+- Clean error handling for download failures
+
 ## [2.1.0] - 2025-12-16
 
 ### Added

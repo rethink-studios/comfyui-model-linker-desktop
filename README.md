@@ -1,8 +1,8 @@
 ﻿# ComfyUI Model Linker - Desktop Edition
 
-**Version 2.1.0** | December 16, 2025
+**Version 2.2.0** | December 16, 2025
 
-A ComfyUI Desktop-compatible fork that automatically detects missing models in workflows and helps you relink them with intelligent fuzzy matching.
+A ComfyUI Desktop-compatible fork that automatically detects missing models in workflows and helps you relink them with intelligent fuzzy matching, plus integrated model downloads!
 
 **Based on the work of:**
 1. **[@kianxyzw](https://github.com/kianxyzw)** - [Original Model Linker](https://github.com/kianxyzw/comfyui-model-linker) ⭐
@@ -14,7 +14,16 @@ A ComfyUI Desktop-compatible fork that automatically detects missing models in w
 
 This fork adds **ComfyUI Desktop compatibility** with major enhancements:
 
-### Latest Updates (December 16, 2025)
+### Latest Updates (December 16, 2025) - v2.2.0
+
+#### Download & Installation Features 🆕
+- ⬇️ **Integrated Model Downloads**: Download missing models directly from URLs with progress tracking
+- 📊 **Real-Time Progress Bars**: Visual progress with percentage, MB downloaded/total, and speed
+- ❌ **Cancel Downloads**: Stop downloads mid-transfer with instant cleanup
+- 🔒 **Partial File Protection**: Downloads to `.tmp` files first - prevents corrupted models in library
+- 🔍 **Search Integration**: Quick search buttons for CivitAI and HuggingFace
+
+#### Matching & Selection
 - 🎯 **Smart Multi-Option Selection**: 90-99% confidence matches show 2-3 options with individual resolve buttons
 - 📻 **Radio Button Selection**: 70-89% confidence matches let you pick the correct model manually
 - 🧠 **Intelligent Token-Based Matching**: Version-aware algorithm (e.g., `wan2.1` vs `wan2.2` are now distinct!)
@@ -30,16 +39,29 @@ This fork adds **ComfyUI Desktop compatibility** with major enhancements:
 
 ## Features
 
+### Model Matching & Resolution
 - 🔍 **Automatic Detection**: Scans workflows and identifies all missing models
 - 🧠 **Smart Token-Based Matching**: Version-aware fuzzy matching that understands model names (e.g., distinguishes `wan2.1` from `wan2.2`)
-- 💯 **Confidence-Based Workflow**: Three tiers of matching confidence
+- 💯 **4-Tier Confidence System**: Intelligent handling based on match quality
   - 🟢 **100% Perfect Matches**: Auto-resolvable with one click
   - 🟡 **90-99% High Confidence**: Shows 2-3 options, click to resolve your choice
   - ⚪ **70-89% Medium Confidence**: Radio button selection for manual verification
+  - ❌ **< 70% No Good Match**: Search and download options
 - 🔗 **Flexible Resolution**: One-click resolve or manual selection based on confidence
 - ⚡ **Batch Auto-Resolve**: Automatically resolve all 100% confidence matches at once
+
+### Download & Installation 🆕
+- ⬇️ **Direct Model Downloads**: Download missing models from any URL
+- 📊 **Progress Tracking**: Real-time progress bars showing percentage, speed, and MB transferred
+- ❌ **Cancellable Downloads**: Stop downloads anytime with instant cleanup
+- 🔒 **Safe Downloads**: Uses `.tmp` files to prevent corrupted models in library
+- 🎯 **Auto-Installation**: Downloads place models in correct ComfyUI directories automatically
+- 🔍 **Quick Search**: One-click search on CivitAI and HuggingFace
+
+### User Interface
 - 🎨 **Draggable UI**: Movable button that remembers its position
 - 💾 **Position Memory**: Button position persists across sessions
+- 🎛️ **Intuitive Controls**: Color-coded confidence levels and clear action buttons
 
 ## Installation
 
@@ -97,12 +119,33 @@ This fork adds **ComfyUI Desktop compatibility** with major enhancements:
    - Select the correct model using radio buttons
    - Click "Resolve Selected" to apply your choice
    - Manual verification recommended
+   
+   **❌ < 70% No Good Match** (Red) 🆕
+   - Shows search buttons for CivitAI and HuggingFace
+   - Paste a download URL in the input field
+   - Click "Download" to start downloading
+   - Watch real-time progress bar with cancel option
+   - Model auto-installs when complete
 
 3. **Resolve Your Choices**: 
    - For 90-99%: Click "Resolve" on the correct option
    - For 70-89%: Select with radio button, then click "Resolve Selected"
+   - For < 70%: Search, paste URL, and download
    
 4. **Auto-Resolve Perfect Matches**: Click "Auto-Resolve 100% Matches" to fix all perfect matches at once
+
+### Download Workflow (For Missing Models)
+
+1. **Find the Model**: Click "Search CivitAI" or "Search HuggingFace" to open search in new tab
+2. **Get Download URL**: Copy the direct download link from the model page
+3. **Paste URL**: Paste the URL in the input field
+4. **Start Download**: Click the "Download" button
+5. **Monitor Progress**: Watch the progress bar (percentage and MB)
+6. **Cancel Anytime**: Click "Cancel" button to stop download if needed
+7. **Auto-Install**: Model automatically places in correct directory when complete
+8. **Verify**: Model Linker refreshes and shows the model as resolved
+
+**Safety Note:** Downloads use temporary `.tmp` files during transfer, so cancelled or failed downloads never corrupt your model library!
 
 ### Dragging the Button
 
@@ -186,6 +229,27 @@ your_models:
 2. Check for "Updated X model paths in workflow" message
 3. Verify the workflow format is compatible (Graph or API format)
 
+### Download Issues 🆕
+
+**Download Won't Start:**
+1. Verify the URL is a direct download link (not a webpage)
+2. Check browser console (Ctrl+Shift+I) for errors
+3. Ensure you have write permissions to model directories
+
+**Cancelled Download Still Shows as Missing:**
+✅ This is correct! Cancelled downloads are cleaned up (`.tmp` files deleted) to prevent corrupted models.
+
+**Download Stuck/Slow:**
+1. Check your internet connection
+2. Try cancelling and restarting the download
+3. Some hosts may rate-limit downloads
+
+**Model Not Appearing After Download:**
+1. Wait for "Download complete" alert
+2. Check the browser console for the installation path
+3. Verify the model was placed in the correct category folder
+4. Try clicking "Reload" in Model Linker dialog
+
 ## Development
 
 ### Project Structure
@@ -206,10 +270,16 @@ comfyui-model-linker/
 
 ### API Endpoints
 
+**Model Matching & Resolution:**
 - `POST /model_linker/analyze` - Analyze workflow for missing models
 - `POST /model_linker/resolve` - Apply model resolutions
 - `GET /model_linker/models` - List all available models
 - `GET /model_linker/health` - Health check
+
+**Download Functionality:** 🆕
+- `POST /model_linker/download` - Start model download
+- `GET /model_linker/download/{id}/progress` - Get download progress
+- `POST /model_linker/download/{id}/cancel` - Cancel active download
 
 ## Contributing
 

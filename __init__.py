@@ -2,8 +2,8 @@
 @author: Model Linker Team (Desktop Fork by RETHINK Studios)
 @title: ComfyUI Model Linker - Desktop Edition
 @nickname: Model Linker
-@version: 2.1.0
-@description: Extension for relinking missing models in ComfyUI workflows with intelligent matching
+@version: 2.2.0
+@description: Extension for relinking missing models in ComfyUI workflows with intelligent matching and integrated downloads
 """
 
 import logging
@@ -122,7 +122,7 @@ def register_api_routes():
     
     async def health_check(request):
         """Health check endpoint to verify Model Linker is running."""
-        return web.json_response({'status': 'ok', 'version': '2.1.0'})
+        return web.json_response({'status': 'ok', 'version': '2.2.0'})
     
     async def download_model(request):
         """Download a model from a URL with progress tracking."""

@@ -1,9 +1,9 @@
 """
-@author: Model Linker Team (Desktop Fork)
-@title: ComfyUI Model Linker
+@author: Model Linker Team (Desktop Fork by RETHINK Studios)
+@title: ComfyUI Model Linker - Desktop Edition
 @nickname: Model Linker
-@version: 2.0.0-desktop
-@description: Extension for relinking missing models in ComfyUI workflows - Fixed for ComfyUI Desktop
+@version: 2.1.0
+@description: Extension for relinking missing models in ComfyUI workflows with intelligent matching
 """
 
 import logging

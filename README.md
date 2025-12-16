@@ -1,6 +1,8 @@
 ﻿# ComfyUI Model Linker - Desktop Edition
 
-A ComfyUI Desktop-compatible fork that automatically detects missing models in workflows and helps you relink them with fuzzy matching.
+**Version 2.1.0** | December 16, 2025
+
+A ComfyUI Desktop-compatible fork that automatically detects missing models in workflows and helps you relink them with intelligent fuzzy matching.
 
 **Based on the work of:**
 1. **[@kianxyzw](https://github.com/kianxyzw)** - [Original Model Linker](https://github.com/kianxyzw/comfyui-model-linker) ⭐
@@ -12,7 +14,7 @@ A ComfyUI Desktop-compatible fork that automatically detects missing models in w
 
 This fork adds **ComfyUI Desktop compatibility** with major enhancements:
 
-### Latest Updates (Dec 2025)
+### Latest Updates (December 16, 2025)
 - 🎯 **Smart Multi-Option Selection**: 90-99% confidence matches show 2-3 options with individual resolve buttons
 - 📻 **Radio Button Selection**: 70-89% confidence matches let you pick the correct model manually
 - 🧠 **Intelligent Token-Based Matching**: Version-aware algorithm (e.g., `wan2.1` vs `wan2.2` are now distinct!)

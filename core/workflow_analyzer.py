@@ -2,6 +2,7 @@
 Workflow Analyzer Module
 
 Extracts model references from workflow JSON and identifies missing models.
+Supports both API format and Graph format workflows.
 """
 
 import os
@@ -20,8 +21,6 @@ except ImportError:
 MODEL_EXTENSIONS = {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft', '.onnx'}
 
 # Mapping of common node types to their expected model category
-# This is used as hints but we don't rely solely on this
-# UNETLoader uses 'diffusion_models' category (folder_paths maps 'unet' to 'diffusion_models')
 NODE_TYPE_TO_CATEGORY_HINTS = {
     'CheckpointLoaderSimple': 'checkpoints',
     'CheckpointLoader': 'checkpoints',
@@ -32,10 +31,19 @@ NODE_TYPE_TO_CATEGORY_HINTS = {
     'UNETLoader': 'diffusion_models',  # UNETLoader uses diffusion_models category
     'ControlNetLoader': 'controlnet',
     'ControlNetLoaderAdvanced': 'controlnet',
+    'CLIPLoader': 'text_encoders',  # CLIPLoader typically uses text_encoders
     'CLIPVisionLoader': 'clip_vision',
     'UpscaleModelLoader': 'upscale_models',
     'HypernetworkLoader': 'hypernetworks',
     'EmbeddingLoader': 'embeddings',
+}
+
+# Common input field names that contain model references
+MODEL_INPUT_FIELDS = {
+    'ckpt_name', 'checkpoint_name', 'model_name',
+    'vae_name', 'lora_name', 'unet_name', 'clip_name',
+    'control_net_name', 'controlnet_name',
+    'upscale_model', 'hypernetwork_name', 'embedding_name'
 }
 
 
@@ -72,7 +80,6 @@ def try_resolve_model_path(value: str, categories: List[str] = None) -> Optional
         return None
     
     # Remove any path separators that might indicate an absolute path prefix
-    # Workflows should store relative paths, but handle both cases
     filename = value.strip()
     
     # Ensure folder_paths is available
@@ -104,26 +111,101 @@ def try_resolve_model_path(value: str, categories: List[str] = None) -> Optional
     return None
 
 
-def get_node_model_info(node: Dict[str, Any]) -> List[Dict[str, Any]]:
+def detect_workflow_format(workflow_json: Dict[str, Any]) -> str:
     """
-    Extract model references from a single node.
+    Detect if workflow is in API format or Graph format.
     
-    This scans all widgets_values entries and tries to identify which ones
-    are model file references by attempting to resolve them.
+    Args:
+        workflow_json: Workflow JSON dictionary
+        
+    Returns:
+        'api' or 'graph'
+    """
+    # API format: keys are node IDs (numbers as strings), values have 'class_type' and 'inputs'
+    # Graph format: has 'nodes' array with objects containing 'type' and 'widgets_values'
+    
+    if 'nodes' in workflow_json and isinstance(workflow_json['nodes'], list):
+        return 'graph'
+    
+    # Check if it looks like API format
+    for key, value in workflow_json.items():
+        if isinstance(value, dict) and 'class_type' in value and 'inputs' in value:
+            return 'api'
+    
+    return 'unknown'
+
+
+def get_node_model_info_api(node_id: str, node_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Extract model references from a single node in API format.
+    
+    Args:
+        node_id: Node ID (string)
+        node_data: Node data dictionary with 'class_type' and 'inputs'
+        
+    Returns:
+        List of model reference dictionaries
+    """
+    model_refs = []
+    class_type = node_data.get('class_type', '')
+    inputs = node_data.get('inputs', {})
+    
+    if not inputs:
+        return model_refs
+    
+    # Get category hints for this node type
+    category_hint = NODE_TYPE_TO_CATEGORY_HINTS.get(class_type)
+    categories_to_try = [category_hint] if category_hint else None
+    
+    # Check each input field for model references
+    for field_name, value in inputs.items():
+        # Skip non-string values and connection references (lists)
+        if not isinstance(value, str):
+            continue
+            
+        # Check if this field name suggests it's a model reference
+        is_model_field = (field_name.lower() in MODEL_INPUT_FIELDS or 
+                         field_name.lower().endswith('_name') or
+                         is_model_filename(value))
+        
+        if not is_model_field:
+            continue
+        
+        # Try to resolve the model path
+        resolved = try_resolve_model_path(value, categories_to_try)
+        
+        if resolved:
+            category, full_path = resolved
+            exists = os.path.exists(full_path)
+        else:
+            # If we can't resolve it, check if it at least looks like a model filename
+            category = category_hint or 'unknown'
+            full_path = None
+            exists = False
+        
+        model_refs.append({
+            'node_id': node_id,
+            'node_type': class_type,
+            'widget_index': field_name,  # For API format, use field name instead of index
+            'field_name': field_name,
+            'original_path': value,
+            'category': category,
+            'full_path': full_path,
+            'exists': exists
+        })
+    
+    return model_refs
+
+
+def get_node_model_info_graph(node: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Extract model references from a single node in Graph format.
     
     Args:
         node: Node dictionary from workflow JSON
         
     Returns:
-        List of model reference dictionaries:
-        {
-            'node_id': node id,
-            'node_type': node type,
-            'widget_index': index in widgets_values,
-            'original_path': original path from workflow,
-            'category': model category (if found),
-            'exists': True if model exists
-        }
+        List of model reference dictionaries
     """
     model_refs = []
     node_id = node.get('id')
@@ -149,8 +231,6 @@ def get_node_model_info(node: Dict[str, Any]) -> List[Dict[str, Any]]:
             category, full_path = resolved
             exists = os.path.exists(full_path)
         else:
-            # If we can't resolve it, check if it at least looks like a model filename
-            # This might be a missing model or a custom node's model
             category = category_hint or 'unknown'
             full_path = None
             exists = False
@@ -170,74 +250,67 @@ def get_node_model_info(node: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def analyze_workflow_models(workflow_json: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Extract all model references from a workflow, including nested subgraphs.
+    Extract all model references from a workflow, supporting both API and Graph formats.
     
     Args:
         workflow_json: Complete workflow JSON dictionary
         
     Returns:
-        List of model reference dictionaries (same format as get_node_model_info)
-        Each dict includes 'subgraph_id' if the model is in a subgraph
+        List of model reference dictionaries
     """
     all_model_refs = []
     
-    # Get subgraph definitions first to check if node types are subgraph UUIDs
-    definitions = workflow_json.get('definitions', {})
-    subgraphs = definitions.get('subgraphs', [])
-    subgraph_lookup = {sg.get('id'): sg.get('name', sg.get('id')) for sg in subgraphs}
+    # Detect workflow format
+    format_type = detect_workflow_format(workflow_json)
+    logging.info(f"Model Linker: Detected workflow format: {format_type}")
     
-    # Analyze top-level nodes
-    nodes = workflow_json.get('nodes', [])
-    for node in nodes:
-        try:
-            model_refs = get_node_model_info(node)
-            node_type = node.get('type', '')
-            
-            # Check if node type is a subgraph UUID
-            subgraph_name = None
-            subgraph_id = None
-            if node_type in subgraph_lookup:
-                subgraph_name = subgraph_lookup[node_type]
-                subgraph_id = node_type
-            
-            # Mark with subgraph info if it's a subgraph node
-            # For top-level subgraph instance nodes, subgraph_path is None
-            # This distinguishes them from nodes within subgraph definitions
-            for ref in model_refs:
-                ref['subgraph_id'] = subgraph_id
-                ref['subgraph_name'] = subgraph_name
-                ref['subgraph_path'] = None  # Top-level, not in definitions.subgraphs
-                ref['is_top_level'] = True  # Flag to indicate this is a top-level node
-            all_model_refs.extend(model_refs)
-        except Exception as e:
-            logging.warning(f"Error analyzing node {node.get('id', 'unknown')}: {e}")
-            continue
-    
-    # Recursively analyze subgraphs (definitions already loaded above)
-    if not subgraphs:  # Re-get if not loaded above
-        subgraphs = definitions.get('subgraphs', [])
-    
-    for subgraph in subgraphs:
-        subgraph_id = subgraph.get('id')
-        subgraph_name = subgraph.get('name', subgraph_id)
-        subgraph_nodes = subgraph.get('nodes', [])
-        
-        logging.debug(f"Analyzing subgraph: {subgraph_name} (ID: {subgraph_id}) with {len(subgraph_nodes)} nodes")
-        
-        for node in subgraph_nodes:
+    if format_type == 'api':
+        # API format: iterate through top-level keys as node IDs
+        for node_id, node_data in workflow_json.items():
+            if isinstance(node_data, dict) and 'class_type' in node_data:
+                try:
+                    model_refs = get_node_model_info_api(node_id, node_data)
+                    all_model_refs.extend(model_refs)
+                except Exception as e:
+                    logging.warning(f"Error analyzing API node {node_id}: {e}")
+                    continue
+                    
+    elif format_type == 'graph':
+        # Graph format: analyze nodes array
+        nodes = workflow_json.get('nodes', [])
+        for node in nodes:
             try:
-                model_refs = get_node_model_info(node)
-                # Mark as belonging to this subgraph definition
-                for ref in model_refs:
-                    ref['subgraph_id'] = subgraph_id
-                    ref['subgraph_name'] = subgraph_name
-                    ref['subgraph_path'] = ['definitions', 'subgraphs', subgraph_id, 'nodes']
-                    ref['is_top_level'] = False  # This is inside a subgraph definition
+                model_refs = get_node_model_info_graph(node)
                 all_model_refs.extend(model_refs)
             except Exception as e:
-                logging.warning(f"Error analyzing subgraph node {node.get('id', 'unknown')}: {e}")
+                logging.warning(f"Error analyzing graph node {node.get('id', 'unknown')}: {e}")
                 continue
+                
+        # Also check for subgraphs in definitions
+        definitions = workflow_json.get('definitions', {})
+        subgraphs = definitions.get('subgraphs', [])
+        
+        for subgraph in subgraphs:
+            subgraph_id = subgraph.get('id')
+            subgraph_name = subgraph.get('name', subgraph_id)
+            subgraph_nodes = subgraph.get('nodes', [])
+            
+            for node in subgraph_nodes:
+                try:
+                    model_refs = get_node_model_info_graph(node)
+                    # Mark as belonging to this subgraph
+                    for ref in model_refs:
+                        ref['subgraph_id'] = subgraph_id
+                        ref['subgraph_name'] = subgraph_name
+                        ref['is_top_level'] = False
+                    all_model_refs.extend(model_refs)
+                except Exception as e:
+                    logging.warning(f"Error analyzing subgraph node {node.get('id', 'unknown')}: {e}")
+                    continue
+    else:
+        logging.warning(f"Model Linker: Unknown workflow format: {format_type}")
     
+    logging.info(f"Model Linker: Found {len(all_model_refs)} model references")
     return all_model_refs
 
 
@@ -263,4 +336,3 @@ def identify_missing_models(
             missing.append(model_ref)
     
     return missing
-

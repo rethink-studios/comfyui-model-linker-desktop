@@ -8,6 +8,12 @@ A ComfyUI Desktop-compatible fork that automatically detects missing models in w
 1. **[@kianxyzw](https://github.com/kianxyzw)** - [Original Model Linker](https://github.com/kianxyzw/comfyui-model-linker) ⭐
 2. **[@gontz](https://github.com/gontz)** - [Improved Fork](https://github.com/gontz/comfyui-model-linker) ⭐
 
+## Demo Video
+
+Watch the Model Linker in action - featuring v2.2.0 with download functionality, radio button selection, and progress tracking:
+
+[📹 View demo.mp4](demo.mp4)
+
 ![Model Linker Demo](model-linker.png)
 
 ## What's New in This Desktop Edition?

@@ -223,13 +223,17 @@ class ModelLinkerDialog {
         // Add event listeners for resolve buttons
         missingModels.forEach((missing, missingIndex) => {
             const matches = missing.matches || [];
-            matches.forEach((match, matchIndex) => {
-                if (match.confidence === 100) {
-                    const buttonId = `resolve-${missing.node_id}-${missingIndex}-${matchIndex}`;
-                    const button = this.contentElement.querySelector(`#${buttonId}`);
-                    if (button) {
-                        button.onclick = () => this.resolveModel(missing, match.model);
-                    }
+            
+            // Add listeners for high confidence (90-99%) matches
+            const highConfidenceMatches = matches.filter(m => m.confidence >= 90 && m.confidence < 100)
+                .sort((a, b) => b.confidence - a.confidence)
+                .slice(0, 3);
+            
+            highConfidenceMatches.forEach((match, matchIndex) => {
+                const buttonId = `resolve-${missing.node_id}-${missing.widget_index || 0}-high-${matchIndex}`;
+                const button = this.contentElement.querySelector(`#${buttonId}`);
+                if (button) {
+                    button.onclick = () => this.resolveModel(missing, match.model);
                 }
             });
         });
@@ -237,41 +241,72 @@ class ModelLinkerDialog {
     
     renderMissingModel(missing) {
         const matches = missing.matches || [];
+        
+        // Separate matches by confidence level
         const perfectMatches = matches.filter(m => m.confidence === 100);
-        const otherMatches = matches.filter(m => m.confidence < 100 && m.confidence >= 70);
+        const highConfidenceMatches = matches.filter(m => m.confidence >= 90 && m.confidence < 100);
+        const mediumConfidenceMatches = matches.filter(m => m.confidence >= 70 && m.confidence < 90);
         
-        let html = `<div style="border: 1px solid #444; padding: 12px; border-radius: 4px;">`;
-        html += `<div><strong>Node:</strong> ${missing.node_type} (ID: ${missing.node_id})</div>`;
-        html += `<div><strong>Missing Model:</strong> <code>${missing.original_path}</code></div>`;
-        html += `<div><strong>Category:</strong> ${missing.category || 'unknown'}</div>`;
-        
-        if (matches.length > 0) {
-            html += `<div style="margin-top: 12px;"><strong>Suggested Matches:</strong></div>`;
-            html += '<ul style="margin: 8px 0; padding-left: 20px;">';
-            
-            const matchesToShow = perfectMatches.length > 0 ? perfectMatches : otherMatches.slice(0, 5);
-            
-            matchesToShow.forEach((match, matchIndex) => {
-                const buttonId = `resolve-${missing.node_id}-${missing.widget_index || 0}-${matchIndex}`;
-                html += `<li style="margin: 4px 0;">`;
-                html += `<code>${match.model?.relative_path || match.filename}</code> `;
-                html += `<span style="color: ${match.confidence === 100 ? 'green' : 'orange'};">
-                    (${match.confidence}% confidence)
-                </span>`;
-                
-                if (match.confidence === 100) {
-                    html += ` <button id="${buttonId}" style="margin-left: 8px; padding: 4px 8px; background: #007acc; color: white; border: none; border-radius: 3px; cursor: pointer;">
-                        Resolve
-                    </button>`;
-                }
-                html += `</li>`;
-            });
-            
+        let html = `<div style="border: 1px solid #444; padding: 12px; border-radius: 4px; margin-bottom: 12px;">`;
+        html += `<div style="margin-bottom: 8px;"><strong>Node:</strong> ${missing.node_type} (ID: ${missing.node_id})</div>`;
+        html += `<div style="margin-bottom: 8px;"><strong>Missing Model:</strong> <code style="background: #333; padding: 2px 6px; border-radius: 3px;">${missing.original_path}</code></div>`;
+        html += `<div style="margin-bottom: 8px;"><strong>Category:</strong> ${missing.category || 'unknown'}</div>`;
+
+        // Show matches based on confidence levels
+        if (perfectMatches.length > 0) {
+            // Perfect matches - will be auto-resolved
+            html += `<div style="margin-top: 12px;"><strong>🟢 Perfect Match (Auto-Resolve):</strong></div>`;
+            html += '<ul style="margin: 8px 0; padding-left: 20px; list-style: none;">';
+            const match = perfectMatches[0];
+            html += `<li style="margin: 4px 0; color: #4CAF50;">`;
+            html += `✓ <code>${match.model?.relative_path || match.filename}</code> `;
+            html += `<span style="color: #4CAF50; font-weight: 600;">(100% match)</span>`;
+            html += `</li>`;
             html += '</ul>';
+            
+        } else if (highConfidenceMatches.length > 0) {
+            // High confidence matches (90-99%) - show top 2-3 with resolve buttons
+            html += `<div style="margin-top: 12px;"><strong>🟡 High Confidence Matches (Select One):</strong></div>`;
+            html += `<div style="background: #2a2a2a; padding: 8px; border-radius: 4px; margin-top: 8px;">`;
+            
+            const topMatches = highConfidenceMatches.sort((a, b) => b.confidence - a.confidence).slice(0, 3);
+            
+            for (let matchIndex = 0; matchIndex < topMatches.length; matchIndex++) {
+                const match = topMatches[matchIndex];
+                const buttonId = `resolve-${missing.node_id}-${missing.widget_index || 0}-high-${matchIndex}`;
+                
+                html += `<div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; margin: 4px 0; background: #353535; border-radius: 4px; border-left: 3px solid #FFA726;">`;
+                html += `<div style="flex: 1;">`;
+                html += `<code style="font-size: 13px;">${match.model?.relative_path || match.filename}</code><br>`;
+                html += `<span style="color: #FFA726; font-size: 12px; font-weight: 600;">${match.confidence}% confidence</span>`;
+                html += `</div>`;
+                html += `<button id="${buttonId}" class="model-linker-resolve-btn" 
+                    style="margin-left: 12px; padding: 6px 12px; background: #FFA726; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">
+                    Resolve
+                </button>`;
+                html += `</div>`;
+            }
+            html += '</div>';
+            
+        } else if (mediumConfidenceMatches.length > 0) {
+            // Medium confidence matches (70-89%) - show for reference only
+            html += `<div style="margin-top: 12px;"><strong>⚪ Possible Matches (Low Confidence):</strong></div>`;
+            html += '<ul style="margin: 8px 0; padding-left: 20px; color: #999;">';
+            
+            const topMatches = mediumConfidenceMatches.sort((a, b) => b.confidence - a.confidence).slice(0, 3);
+            for (const match of topMatches) {
+                html += `<li style="margin: 4px 0; font-size: 12px;">`;
+                html += `<code>${match.model?.relative_path || match.filename}</code> `;
+                html += `<span style="color: #999;">(${match.confidence}%)</span>`;
+                html += `</li>`;
+            }
+            html += '</ul>';
+            html += `<div style="color: #999; font-size: 11px; font-style: italic; margin-top: 4px;">⚠️ Confidence too low - manual verification recommended</div>`;
+            
         } else {
-            html += `<div style="color: orange; margin-top: 8px;">No matches found.</div>`;
+            html += `<div style="color: #f44336; margin-top: 8px;">❌ No matches found above 70% confidence.</div>`;
         }
-        
+
         html += '</div>';
         return html;
     }

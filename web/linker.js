@@ -237,8 +237,8 @@ class ModelLinkerDialog {
                 }
             });
             
-            // Add listeners for medium confidence (70-89%) matches - radio button selection
-            const mediumConfidenceMatches = matches.filter(m => m.confidence >= 70 && m.confidence < 90)
+            // Add listeners for medium confidence (75-89%) matches - radio button selection
+            const mediumConfidenceMatches = matches.filter(m => m.confidence >= 75 && m.confidence < 90)
                 .sort((a, b) => b.confidence - a.confidence)
                 .slice(0, 3);
             
@@ -263,8 +263,8 @@ class ModelLinkerDialog {
                 }
             }
             
-            // Add listeners for download buttons (< 70% confidence - no good matches)
-            if (matches.length === 0 || matches.every(m => m.confidence < 70)) {
+            // Add listeners for download buttons (< 75% confidence - no good matches)
+            if (matches.length === 0 || matches.every(m => m.confidence < 75)) {
                 const downloadBtnId = `download-${missing.node_id}-${missing.widget_index || 0}`;
                 const urlInputId = `url-input-${missing.node_id}-${missing.widget_index || 0}`;
                 const cancelBtnId = `cancel-${missing.node_id}-${missing.widget_index || 0}`;
@@ -290,8 +290,8 @@ class ModelLinkerDialog {
         // Separate matches by confidence level
         const perfectMatches = matches.filter(m => m.confidence === 100);
         const highConfidenceMatches = matches.filter(m => m.confidence >= 90 && m.confidence < 100);
-        const mediumConfidenceMatches = matches.filter(m => m.confidence >= 70 && m.confidence < 90);
-        const lowConfidenceMatches = matches.filter(m => m.confidence >= 50 && m.confidence < 70);
+        const mediumConfidenceMatches = matches.filter(m => m.confidence >= 75 && m.confidence < 90);
+        const lowConfidenceMatches = matches.filter(m => m.confidence >= 50 && m.confidence < 75);
         
         let html = `<div style="border: 1px solid #444; padding: 12px; border-radius: 4px; margin-bottom: 12px;">`;
         html += `<div style="margin-bottom: 8px;"><strong>Node:</strong> ${missing.node_type} (ID: ${missing.node_id})</div>`;
@@ -335,7 +335,7 @@ class ModelLinkerDialog {
             html += '</div>';
             
         } else if (mediumConfidenceMatches.length > 0) {
-            // Medium confidence matches (70-89%) - show with radio buttons for user selection
+            // Medium confidence matches (75-89%) - show with radio buttons for user selection
             html += `<div style="margin-top: 12px;"><strong>⚪ Possible Matches (Select One):</strong></div>`;
             html += `<div style="background: #2a2a2a; padding: 8px; border-radius: 4px; margin-top: 8px;">`;
             html += `<div style="color: #FFA500; font-size: 11px; margin-bottom: 8px;">⚠️ Lower confidence - verify before resolving</div>`;
@@ -364,7 +364,7 @@ class ModelLinkerDialog {
             html += '</div>';
             
         } else {
-            // No good matches (< 70% or no matches) - show download/search options
+            // No good matches (< 75% or no matches) - show download/search options
             const hasLowMatches = lowConfidenceMatches.length > 0;
             
             html += `<div style="margin-top: 12px;">`;
@@ -372,7 +372,7 @@ class ModelLinkerDialog {
             html += `<div style="background: #2a2a2a; padding: 12px; border-radius: 4px; margin-top: 8px; border-left: 3px solid #f44336;">`;
             
             if (hasLowMatches) {
-                html += `<div style="color: #999; font-size: 12px; margin-bottom: 8px;">Found ${lowConfidenceMatches.length} low confidence match(es) (< 70%), but they're not recommended.</div>`;
+                html += `<div style="color: #999; font-size: 12px; margin-bottom: 8px;">Found ${lowConfidenceMatches.length} low confidence match(es) (< 75%), but they're not recommended.</div>`;
             }
             
             html += `<div style="color: #ddd; margin-bottom: 12px;">`;

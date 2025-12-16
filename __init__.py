@@ -228,39 +228,68 @@ def register_api_routes():
     
     async def _download_file_with_progress(url: str, dest_path: Path, download_id: str):
         """Download a file with progress tracking."""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status != 200:
-                    raise Exception(f"Failed to download: HTTP {response.status}")
-                
-                total_size = int(response.headers.get('content-length', 0))
-                downloaded = 0
-                
-                # Update progress info
-                if download_id in active_downloads:
-                    active_downloads[download_id]['progress']['total'] = total_size
-                
-                with open(dest_path, 'wb') as f:
-                    async for chunk in response.content.iter_chunked(8192):
-                        # Check if cancelled
-                        if download_id in active_downloads and active_downloads[download_id]['cancelled']:
-                            # Delete partial file
-                            f.close()
-                            if dest_path.exists():
-                                dest_path.unlink()
-                            raise asyncio.CancelledError("Download cancelled by user")
-                        
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        
-                        # Update progress
-                        if download_id in active_downloads:
-                            progress = active_downloads[download_id]['progress']
-                            progress['downloaded'] = downloaded
-                            progress['total'] = total_size
-                            progress['percent'] = int((downloaded / total_size * 100)) if total_size > 0 else 0
-                
-                return {'path': str(dest_path), 'size': downloaded}
+        # IMPORTANT: Download to .tmp file first to prevent partial files from being detected!
+        temp_path = dest_path.with_suffix(dest_path.suffix + '.tmp')
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        raise Exception(f"Failed to download: HTTP {response.status}")
+                    
+                    total_size = int(response.headers.get('content-length', 0))
+                    downloaded = 0
+                    
+                    # Update progress info
+                    if download_id in active_downloads:
+                        active_downloads[download_id]['progress']['total'] = total_size
+                    
+                    # Download to TEMP file first
+                    with open(temp_path, 'wb') as f:
+                        async for chunk in response.content.iter_chunked(8192):
+                            # Check if cancelled
+                            if download_id in active_downloads and active_downloads[download_id]['cancelled']:
+                                # Close and delete temp file
+                                f.close()
+                                if temp_path.exists():
+                                    temp_path.unlink()
+                                logger.info(f"Download cancelled, temp file deleted: {temp_path}")
+                                raise asyncio.CancelledError("Download cancelled by user")
+                            
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            
+                            # Update progress
+                            if download_id in active_downloads:
+                                progress = active_downloads[download_id]['progress']
+                                progress['downloaded'] = downloaded
+                                progress['total'] = total_size
+                                progress['percent'] = int((downloaded / total_size * 100)) if total_size > 0 else 0
+                    
+                    # Only rename to final name if download completed successfully!
+                    if downloaded == total_size or total_size == 0:
+                        temp_path.rename(dest_path)
+                        logger.info(f"Download complete, renamed {temp_path} -> {dest_path}")
+                    else:
+                        # Incomplete download - delete temp file
+                        if temp_path.exists():
+                            temp_path.unlink()
+                        raise Exception(f"Download incomplete: {downloaded}/{total_size} bytes")
+                    
+                    return {'path': str(dest_path), 'size': downloaded}
+                    
+        except asyncio.CancelledError:
+            # Ensure temp file is deleted on cancellation
+            if temp_path.exists():
+                temp_path.unlink()
+                logger.info(f"Cancelled: Temp file cleaned up: {temp_path}")
+            raise
+        except Exception as e:
+            # Clean up temp file on any error
+            if temp_path.exists():
+                temp_path.unlink()
+                logger.error(f"Error during download, temp file deleted: {temp_path}")
+            raise
     
     # Register routes with the app
     try:

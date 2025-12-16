@@ -10,7 +10,9 @@ A ComfyUI Desktop-compatible fork that automatically detects missing models in w
 
 
 
-https://github.com/rethink-studios/comfyui-model-linker-desktop/assets/demo.mp4
+https://github.com/user-attachments/assets/c81ab111-692d-47cd-87c2-687b0c8659a8
+
+
 
 ## What's New in This Desktop Edition?
 

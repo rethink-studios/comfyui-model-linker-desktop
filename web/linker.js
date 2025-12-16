@@ -272,6 +272,7 @@ class ModelLinkerDialog {
         const perfectMatches = matches.filter(m => m.confidence === 100);
         const highConfidenceMatches = matches.filter(m => m.confidence >= 90 && m.confidence < 100);
         const mediumConfidenceMatches = matches.filter(m => m.confidence >= 70 && m.confidence < 90);
+        const lowConfidenceMatches = matches.filter(m => m.confidence >= 50 && m.confidence < 70);
         
         let html = `<div style="border: 1px solid #444; padding: 12px; border-radius: 4px; margin-bottom: 12px;">`;
         html += `<div style="margin-bottom: 8px;"><strong>Node:</strong> ${missing.node_type} (ID: ${missing.node_id})</div>`;
@@ -344,11 +345,88 @@ class ModelLinkerDialog {
             html += '</div>';
             
         } else {
-            html += `<div style="color: #f44336; margin-top: 8px;">❌ No matches found above 70% confidence.</div>`;
+            // No good matches (< 70% or no matches) - show download/search options
+            const hasLowMatches = lowConfidenceMatches.length > 0;
+            
+            html += `<div style="margin-top: 12px;">`;
+            html += `<strong style="color: #f44336;">❌ No Good Matches Found</strong>`;
+            html += `<div style="background: #2a2a2a; padding: 12px; border-radius: 4px; margin-top: 8px; border-left: 3px solid #f44336;">`;
+            
+            if (hasLowMatches) {
+                html += `<div style="color: #999; font-size: 12px; margin-bottom: 8px;">Found ${lowConfidenceMatches.length} low confidence match(es) (< 70%), but they're not recommended.</div>`;
+            }
+            
+            html += `<div style="color: #ddd; margin-bottom: 12px;">`;
+            html += `<strong>Missing:</strong> <code style="background: #333; padding: 2px 6px; border-radius: 3px;">${missing.original_path}</code>`;
+            html += `</div>`;
+            
+            // Download/Search options
+            html += `<div style="display: flex; gap: 8px; flex-wrap: wrap;">`;
+            
+            // Search on CivitAI button
+            const civitSearchUrl = `https://civitai.com/search/models?query=${encodeURIComponent(missing.original_path.replace(/\.[^/.]+$/, ''))}`;
+            html += `<a href="${civitSearchUrl}" target="_blank" style="text-decoration: none;">`;
+            html += `<button style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">`;
+            html += `🔍 Search CivitAI`;
+            html += `</button>`;
+            html += `</a>`;
+            
+            // Search on HuggingFace button
+            const hfSearchUrl = `https://huggingface.co/models?search=${encodeURIComponent(missing.original_path.replace(/\.[^/.]+$/, ''))}`;
+            html += `<a href="${hfSearchUrl}" target="_blank" style="text-decoration: none;">`;
+            html += `<button style="padding: 8px 16px; background: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">`;
+            html += `🤗 Search HuggingFace`;
+            html += `</button>`;
+            html += `</a>`;
+            
+            // Direct download button (if we have a URL later)
+            const downloadBtnId = `download-${missing.node_id}-${missing.widget_index || 0}`;
+            html += `<button id="${downloadBtnId}" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;" disabled>`;
+            html += `⬇️ Download (Coming Soon)`;
+            html += `</button>`;
+            
+            html += `</div>`;
+            
+            // Progress bar placeholder (hidden initially)
+            const progressId = `progress-${missing.node_id}-${missing.widget_index || 0}`;
+            html += `<div id="${progressId}" style="display: none; margin-top: 12px;">`;
+            html += `<div style="color: #2196F3; font-size: 12px; margin-bottom: 4px;">Downloading...</div>`;
+            html += `<div style="background: #1a1a1a; border-radius: 4px; overflow: hidden; height: 20px;">`;
+            html += `<div class="download-progress-bar" style="background: linear-gradient(90deg, #2196F3, #21CBF3); height: 100%; width: 0%; transition: width 0.3s;"></div>`;
+            html += `</div>`;
+            html += `<div class="download-progress-text" style="color: #999; font-size: 11px; margin-top: 4px;">0% - 0 MB / 0 MB</div>`;
+            html += `</div>`;
+            
+            html += `</div>`;
+            html += `</div>`;
         }
 
         html += '</div>';
         return html;
+    }
+    
+    updateDownloadProgress(nodeId, widgetIndex, progress) {
+        const progressId = `progress-${nodeId}-${widgetIndex || 0}`;
+        const progressContainer = this.contentElement.querySelector(`#${progressId}`);
+        
+        if (!progressContainer) return;
+        
+        // Show progress container
+        progressContainer.style.display = 'block';
+        
+        // Update progress bar
+        const progressBar = progressContainer.querySelector('.download-progress-bar');
+        const progressText = progressContainer.querySelector('.download-progress-text');
+        
+        if (progressBar) {
+            progressBar.style.width = `${progress.percent}%`;
+        }
+        
+        if (progressText) {
+            const downloadedMB = (progress.downloaded / 1024 / 1024).toFixed(2);
+            const totalMB = (progress.total / 1024 / 1024).toFixed(2);
+            progressText.textContent = `${progress.percent}% - ${downloadedMB} MB / ${totalMB} MB`;
+        }
     }
     
     async resolveModel(missing, resolvedModel) {

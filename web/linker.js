@@ -236,6 +236,32 @@ class ModelLinkerDialog {
                     button.onclick = () => this.resolveModel(missing, match.model);
                 }
             });
+            
+            // Add listeners for medium confidence (70-89%) matches - radio button selection
+            const mediumConfidenceMatches = matches.filter(m => m.confidence >= 70 && m.confidence < 90)
+                .sort((a, b) => b.confidence - a.confidence)
+                .slice(0, 3);
+            
+            if (mediumConfidenceMatches.length > 0) {
+                const resolveButtonId = `resolve-medium-${missing.node_id}-${missing.widget_index || 0}`;
+                const resolveButton = this.contentElement.querySelector(`#${resolveButtonId}`);
+                
+                if (resolveButton) {
+                    resolveButton.onclick = () => {
+                        // Find which radio button is selected
+                        const radioGroupName = `medium-match-${missing.node_id}-${missing.widget_index || 0}`;
+                        const selectedRadio = this.contentElement.querySelector(`input[name="${radioGroupName}"]:checked`);
+                        
+                        if (selectedRadio) {
+                            const selectedIndex = parseInt(selectedRadio.value);
+                            const selectedMatch = mediumConfidenceMatches[selectedIndex];
+                            this.resolveModel(missing, selectedMatch.model);
+                        } else {
+                            alert('Please select a model first');
+                        }
+                    };
+                }
+            }
         });
     }
     
@@ -289,19 +315,33 @@ class ModelLinkerDialog {
             html += '</div>';
             
         } else if (mediumConfidenceMatches.length > 0) {
-            // Medium confidence matches (70-89%) - show for reference only
-            html += `<div style="margin-top: 12px;"><strong>⚪ Possible Matches (Low Confidence):</strong></div>`;
-            html += '<ul style="margin: 8px 0; padding-left: 20px; color: #999;">';
+            // Medium confidence matches (70-89%) - show with radio buttons for user selection
+            html += `<div style="margin-top: 12px;"><strong>⚪ Possible Matches (Select One):</strong></div>`;
+            html += `<div style="background: #2a2a2a; padding: 8px; border-radius: 4px; margin-top: 8px;">`;
+            html += `<div style="color: #FFA500; font-size: 11px; margin-bottom: 8px;">⚠️ Lower confidence - verify before resolving</div>`;
             
             const topMatches = mediumConfidenceMatches.sort((a, b) => b.confidence - a.confidence).slice(0, 3);
-            for (const match of topMatches) {
-                html += `<li style="margin: 4px 0; font-size: 12px;">`;
-                html += `<code>${match.model?.relative_path || match.filename}</code> `;
-                html += `<span style="color: #999;">(${match.confidence}%)</span>`;
-                html += `</li>`;
+            const radioGroupName = `medium-match-${missing.node_id}-${missing.widget_index || 0}`;
+            
+            for (let matchIndex = 0; matchIndex < topMatches.length; matchIndex++) {
+                const match = topMatches[matchIndex];
+                const radioId = `radio-${missing.node_id}-${missing.widget_index || 0}-medium-${matchIndex}`;
+                
+                html += `<div style="display: flex; align-items: center; padding: 6px; margin: 4px 0; background: #353535; border-radius: 4px; border-left: 3px solid #999;">`;
+                html += `<input type="radio" name="${radioGroupName}" id="${radioId}" value="${matchIndex}" style="margin-right: 8px; cursor: pointer;">`;
+                html += `<label for="${radioId}" style="flex: 1; cursor: pointer; font-size: 13px;">`;
+                html += `<code style="color: #ddd;">${match.model?.relative_path || match.filename}</code><br>`;
+                html += `<span style="color: #999; font-size: 11px;">${match.confidence}% confidence</span>`;
+                html += `</label>`;
+                html += `</div>`;
             }
-            html += '</ul>';
-            html += `<div style="color: #999; font-size: 11px; font-style: italic; margin-top: 4px;">⚠️ Confidence too low - manual verification recommended</div>`;
+            
+            const resolveButtonId = `resolve-medium-${missing.node_id}-${missing.widget_index || 0}`;
+            html += `<button id="${resolveButtonId}" class="model-linker-resolve-medium-btn" 
+                style="margin-top: 8px; padding: 6px 12px; background: #666; color: #fff; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-weight: 600;">
+                Resolve Selected
+            </button>`;
+            html += '</div>';
             
         } else {
             html += `<div style="color: #f44336; margin-top: 8px;">❌ No matches found above 70% confidence.</div>`;

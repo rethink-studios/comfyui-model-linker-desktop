@@ -10,20 +10,31 @@ A ComfyUI Desktop-compatible fork that automatically detects missing models in w
 
 ## What's New in This Desktop Edition?
 
-This fork adds **ComfyUI Desktop compatibility** with several enhancements:
+This fork adds **ComfyUI Desktop compatibility** with major enhancements:
+
+### Latest Updates (Dec 2025)
+- 🎯 **Smart Multi-Option Selection**: 90-99% confidence matches show 2-3 options with individual resolve buttons
+- 📻 **Radio Button Selection**: 70-89% confidence matches let you pick the correct model manually
+- 🧠 **Intelligent Token-Based Matching**: Version-aware algorithm (e.g., `wan2.1` vs `wan2.2` are now distinct!)
+- 🐛 **Critical Bug Fix**: Fixed false 100% matches caused by version numbers being treated as file extensions
+- ✅ **Improved Accuracy**: Correct matches now score 87-94% vs wrong matches at 43-49%
+
+### Core Features
 - ✅ **Desktop App Support**: Works seamlessly in ComfyUI Desktop's Electron environment
 - 🎯 **Draggable Button**: Movable UI button with position persistence
 - 🔧 **Fixed API Routing**: Proper URL handling for Desktop's architecture
-- 🐛 **Bug Fixes**: Resolved widget_index handling (0 index issue) and workflow update issues
 - 💾 **Position Memory**: Button position saves across sessions
 - 🔍 **Enhanced Logging**: Better debugging support for Desktop environment
 
 ## Features
 
 - 🔍 **Automatic Detection**: Scans workflows and identifies all missing models
-- 🎯 **Fuzzy Matching**: Uses intelligent fuzzy matching to find similar models on your system
-- 💯 **Confidence Scoring**: Shows match confidence percentages to help you choose the right model
-- 🔗 **One-Click Resolution**: Resolve missing models with a single click
+- 🧠 **Smart Token-Based Matching**: Version-aware fuzzy matching that understands model names (e.g., distinguishes `wan2.1` from `wan2.2`)
+- 💯 **Confidence-Based Workflow**: Three tiers of matching confidence
+  - 🟢 **100% Perfect Matches**: Auto-resolvable with one click
+  - 🟡 **90-99% High Confidence**: Shows 2-3 options, click to resolve your choice
+  - ⚪ **70-89% Medium Confidence**: Radio button selection for manual verification
+- 🔗 **Flexible Resolution**: One-click resolve or manual selection based on confidence
 - ⚡ **Batch Auto-Resolve**: Automatically resolve all 100% confidence matches at once
 - 🎨 **Draggable UI**: Movable button that remembers its position
 - 💾 **Position Memory**: Button position persists across sessions
@@ -67,10 +78,29 @@ This fork adds **ComfyUI Desktop compatibility** with several enhancements:
 ### Basic Workflow
 
 1. **Open Model Linker**: Click the "🔗 Model Linker" button in the UI
-2. **Review Missing Models**: The dialog will show all missing models with suggested matches
-3. **Check Confidence**: Look for 100% confidence matches (green) or lower confidence matches (orange)
-4. **Resolve Individually**: Click "Resolve" next to any suggested match
-5. **Or Auto-Resolve**: Click "Auto-Resolve 100% Matches" to fix all perfect matches at once
+2. **Review Missing Models**: The dialog shows all missing models organized by confidence level:
+
+   **🟢 100% Perfect Matches** (Green)
+   - Exact filename matches after normalization
+   - Will be auto-resolved when you click "Auto-Resolve 100% Matches"
+   
+   **🟡 90-99% High Confidence** (Orange)
+   - Shows 2-3 best matching options
+   - Each option has its own "Resolve" button
+   - Click "Resolve" on the correct model
+   - Great for minor filename variations (e.g., `model_v1` vs `model-v1`)
+   
+   **⚪ 70-89% Medium Confidence** (Gray)
+   - Shows 2-3 possible matches with radio buttons
+   - Select the correct model using radio buttons
+   - Click "Resolve Selected" to apply your choice
+   - Manual verification recommended
+
+3. **Resolve Your Choices**: 
+   - For 90-99%: Click "Resolve" on the correct option
+   - For 70-89%: Select with radio button, then click "Resolve Selected"
+   
+4. **Auto-Resolve Perfect Matches**: Click "Auto-Resolve 100% Matches" to fix all perfect matches at once
 
 ### Dragging the Button
 
@@ -92,11 +122,21 @@ The Model Linker scans your workflow and identifies:
 
 ### Fuzzy Matching
 
-Uses intelligent matching algorithms to find similar models:
-- Exact filename matches (100% confidence)
-- Partial name matches
-- Normalized path comparisons
-- Category-aware searching
+Uses **token-based intelligent matching** to find similar models:
+- **Exact filename matches** (100% confidence)
+- **Version number awareness**: Distinguishes `2.1` from `2.2`, `v1` from `v2`
+- **Token-based comparison**: Breaks filenames into meaningful components
+- **Weighted scoring**: 70% token similarity + 30% character similarity
+- **Normalized comparisons**: Handles `_`, `-`, `.` variations (e.g., `model_name` = `model-name`)
+- **Category-aware searching**: Only searches appropriate model types
+
+**Example:**
+```
+Target: wan2.1_t2v_14B_fp8_scaled.safetensors
+
+❌ Wrong:   wan2.2_fun_control_high_noise... → 49% (different version!)
+✅ Correct: Wan2_1-T2V-14B_fp8_e4m3fn...    → 87% (same version & key tokens)
+```
 
 ### Resolution
 

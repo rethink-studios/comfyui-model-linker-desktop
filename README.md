@@ -187,7 +187,7 @@ This project builds upon excellent work by:
 2. **[@gontz](https://github.com/gontz)** - [Enhanced Fork](https://github.com/gontz/comfyui-model-linker)  
    Improved the original with additional features and refinements
 
-3. **[Rethink Studios](https://github.com/rethink-studios)** - Desktop Edition  
+3. **[RETHINK Studios](https://github.com/rethink-studios)** - Desktop Edition  
    Adapted for ComfyUI Desktop with draggable UI and bug fixes
 
 Special thanks to both original authors for creating this excellent tool! 🙏

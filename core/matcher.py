@@ -15,20 +15,17 @@ def normalize_filename(filename: str) -> str:
     """
     Normalize a filename for comparison.
     
-    Removes file extension, converts to lowercase, and normalizes
-    separators (underscores, hyphens, spaces).
+    Converts to lowercase and normalizes separators (underscores, hyphens, spaces).
+    NOTE: Does NOT remove extension - caller should handle that if needed.
     
     Args:
-        filename: Filename to normalize
+        filename: Filename to normalize (with or without extension)
         
     Returns:
         Normalized string for comparison
     """
-    # Remove file extension
-    base = os.path.splitext(filename)[0]
-    
     # Convert to lowercase
-    base = base.lower()
+    base = filename.lower()
     
     # Normalize separators: replace underscores, hyphens, and spaces with a single space
     base = re.sub(r'[_\-\s]+', ' ', base)
@@ -45,13 +42,13 @@ def tokenize_model_name(filename: str) -> List[str]:
     Normalizes version numbers and identifiers for better matching.
     
     Args:
-        filename: Model filename to tokenize
+        filename: Model filename to tokenize (with or without extension)
         
     Returns:
         List of normalized tokens
     """
-    # Remove extension
-    base = os.path.splitext(filename)[0].lower()
+    # Convert to lowercase (don't strip extension - caller handles that)
+    base = filename.lower()
     
     # Normalize all separators to single character for consistent splitting
     # Replace _, -, . with space
@@ -60,14 +57,11 @@ def tokenize_model_name(filename: str) -> List[str]:
     # Split into tokens
     tokens = normalized.split()
     
-    # Further process tokens to handle version numbers
-    processed_tokens = []
-    for token in tokens:
-        # If token looks like a version (e.g., "2", "1", etc following model name)
-        # Keep it as-is
-        processed_tokens.append(token)
+    # Remove common extensions if present (safetensors, pt, ckpt, etc)
+    if tokens and tokens[-1] in ['safetensors', 'pt', 'ckpt', 'bin', 'pth']:
+        tokens = tokens[:-1]
     
-    return [t for t in processed_tokens if t]  # Remove empty strings
+    return [t for t in tokens if t]  # Remove empty strings
 
 
 def calculate_token_similarity(tokens1: List[str], tokens2: List[str]) -> float:

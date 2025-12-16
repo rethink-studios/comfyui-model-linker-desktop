@@ -9,11 +9,18 @@
 import logging
 import threading
 import time
+import asyncio
+import aiohttp
+import os
+from pathlib import Path
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ModelLinker")
 logger.setLevel(logging.INFO)
+
+# Track active downloads for cancellation
+active_downloads = {}
 
 # Web directory for JavaScript interface
 WEB_DIRECTORY = "./web"
@@ -115,7 +122,145 @@ def register_api_routes():
     
     async def health_check(request):
         """Health check endpoint to verify Model Linker is running."""
-        return web.json_response({'status': 'ok', 'version': '2.0.0-desktop'})
+        return web.json_response({'status': 'ok', 'version': '2.1.0'})
+    
+    async def download_model(request):
+        """Download a model from a URL with progress tracking."""
+        try:
+            data = await request.json()
+            url = data.get('url')
+            category = data.get('category', 'checkpoints')
+            filename = data.get('filename')
+            download_id = data.get('download_id')
+            
+            if not url or not filename or not download_id:
+                return web.json_response({'error': 'url, filename, and download_id are required'}, status=400)
+            
+            # Determine destination path based on category
+            import folder_paths
+            model_dirs = folder_paths.get_folder_paths(category)
+            if not model_dirs:
+                return web.json_response({'error': f'No directory found for category: {category}'}, status=400)
+            
+            dest_dir = Path(model_dirs[0])
+            dest_path = dest_dir / filename
+            
+            # Check if file already exists
+            if dest_path.exists():
+                return web.json_response({'error': 'File already exists', 'path': str(dest_path)}, status=409)
+            
+            # Create directory if it doesn't exist
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Start download in background
+            download_task = asyncio.create_task(
+                _download_file_with_progress(url, dest_path, download_id)
+            )
+            
+            # Store task for cancellation
+            active_downloads[download_id] = {
+                'task': download_task,
+                'cancelled': False,
+                'progress': {'downloaded': 0, 'total': 0, 'percent': 0}
+            }
+            
+            return web.json_response({
+                'success': True,
+                'download_id': download_id,
+                'destination': str(dest_path)
+            })
+        except Exception as e:
+            logger.error(f"Model Linker download error: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def get_download_progress(request):
+        """Get progress of an active download."""
+        try:
+            download_id = request.match_info.get('download_id')
+            
+            if download_id not in active_downloads:
+                return web.json_response({'error': 'Download not found'}, status=404)
+            
+            download_info = active_downloads[download_id]
+            progress = download_info['progress']
+            
+            # Check if download is complete
+            if download_info['task'].done():
+                try:
+                    result = download_info['task'].result()
+                    del active_downloads[download_id]
+                    return web.json_response({
+                        'status': 'completed',
+                        'success': True,
+                        'result': result
+                    })
+                except Exception as e:
+                    del active_downloads[download_id]
+                    return web.json_response({
+                        'status': 'failed',
+                        'error': str(e)
+                    })
+            
+            return web.json_response({
+                'status': 'downloading' if not download_info['cancelled'] else 'cancelling',
+                'progress': progress
+            })
+        except Exception as e:
+            logger.error(f"Model Linker progress error: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def cancel_download(request):
+        """Cancel an active download."""
+        try:
+            download_id = request.match_info.get('download_id')
+            
+            if download_id not in active_downloads:
+                return web.json_response({'error': 'Download not found'}, status=404)
+            
+            download_info = active_downloads[download_id]
+            download_info['cancelled'] = True
+            download_info['task'].cancel()
+            
+            return web.json_response({'success': True, 'message': 'Download cancelled'})
+        except Exception as e:
+            logger.error(f"Model Linker cancel error: {e}", exc_info=True)
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def _download_file_with_progress(url: str, dest_path: Path, download_id: str):
+        """Download a file with progress tracking."""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    raise Exception(f"Failed to download: HTTP {response.status}")
+                
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                # Update progress info
+                if download_id in active_downloads:
+                    active_downloads[download_id]['progress']['total'] = total_size
+                
+                with open(dest_path, 'wb') as f:
+                    async for chunk in response.content.iter_chunked(8192):
+                        # Check if cancelled
+                        if download_id in active_downloads and active_downloads[download_id]['cancelled']:
+                            # Delete partial file
+                            f.close()
+                            if dest_path.exists():
+                                dest_path.unlink()
+                            raise asyncio.CancelledError("Download cancelled by user")
+                        
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        
+                        # Update progress
+                        if download_id in active_downloads:
+                            progress = active_downloads[download_id]['progress']
+                            progress['downloaded'] = downloaded
+                            progress['total'] = total_size
+                            progress['percent'] = int((downloaded / total_size * 100)) if total_size > 0 else 0
+                
+                return {'path': str(dest_path), 'size': downloaded}
     
     # Register routes with the app
     try:
@@ -124,6 +269,9 @@ def register_api_routes():
         app.router.add_post('/model_linker/resolve', resolve_models)
         app.router.add_get('/model_linker/models', get_models)
         app.router.add_get('/model_linker/health', health_check)
+        app.router.add_post('/model_linker/download', download_model)
+        app.router.add_get('/model_linker/download/{download_id}/progress', get_download_progress)
+        app.router.add_post('/model_linker/download/{download_id}/cancel', cancel_download)
         
         _routes_registered = True
         logger.info("✓ Model Linker: API routes registered successfully!")

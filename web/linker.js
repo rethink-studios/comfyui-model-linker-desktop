@@ -262,6 +262,25 @@ class ModelLinkerDialog {
                     };
                 }
             }
+            
+            // Add listeners for download buttons (< 70% confidence - no good matches)
+            if (matches.length === 0 || matches.every(m => m.confidence < 70)) {
+                const downloadBtnId = `download-${missing.node_id}-${missing.widget_index || 0}`;
+                const urlInputId = `url-input-${missing.node_id}-${missing.widget_index || 0}`;
+                const cancelBtnId = `cancel-${missing.node_id}-${missing.widget_index || 0}`;
+                
+                const downloadBtn = this.contentElement.querySelector(`#${downloadBtnId}`);
+                const urlInput = this.contentElement.querySelector(`#${urlInputId}`);
+                const cancelBtn = this.contentElement.querySelector(`#${cancelBtnId}`);
+                
+                if (downloadBtn && urlInput) {
+                    downloadBtn.onclick = () => this.downloadModel(missing, urlInput.value);
+                }
+                
+                if (cancelBtn) {
+                    cancelBtn.onclick = () => this.cancelDownload(missing);
+                }
+            }
         });
     }
     
@@ -379,18 +398,26 @@ class ModelLinkerDialog {
             html += `</button>`;
             html += `</a>`;
             
-            // Direct download button (if we have a URL later)
+            // Direct download button with URL input
             const downloadBtnId = `download-${missing.node_id}-${missing.widget_index || 0}`;
-            html += `<button id="${downloadBtnId}" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;" disabled>`;
-            html += `⬇️ Download (Coming Soon)`;
+            const urlInputId = `url-input-${missing.node_id}-${missing.widget_index || 0}`;
+            html += `<div style="display: flex; gap: 4px; flex: 1; min-width: 300px;">`;
+            html += `<input id="${urlInputId}" type="text" placeholder="Paste download URL..." style="flex: 1; padding: 8px; background: #1a1a1a; color: #ddd; border: 1px solid #444; border-radius: 4px;">`;
+            html += `<button id="${downloadBtnId}" class="download-btn" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; white-space: nowrap;">`;
+            html += `⬇️ Download`;
             html += `</button>`;
+            html += `</div>`;
             
             html += `</div>`;
             
             // Progress bar placeholder (hidden initially)
             const progressId = `progress-${missing.node_id}-${missing.widget_index || 0}`;
+            const cancelBtnId = `cancel-${missing.node_id}-${missing.widget_index || 0}`;
             html += `<div id="${progressId}" style="display: none; margin-top: 12px;">`;
-            html += `<div style="color: #2196F3; font-size: 12px; margin-bottom: 4px;">Downloading...</div>`;
+            html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">`;
+            html += `<span style="color: #2196F3; font-size: 12px;">Downloading...</span>`;
+            html += `<button id="${cancelBtnId}" style="padding: 4px 8px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; font-weight: 600;">Cancel</button>`;
+            html += `</div>`;
             html += `<div style="background: #1a1a1a; border-radius: 4px; overflow: hidden; height: 20px;">`;
             html += `<div class="download-progress-bar" style="background: linear-gradient(90deg, #2196F3, #21CBF3); height: 100%; width: 0%; transition: width 0.3s;"></div>`;
             html += `</div>`;
@@ -499,6 +526,137 @@ class ModelLinkerDialog {
             console.error('🔗 Resolve error:', error);
             alert('Error resolving model: ' + error.message);
         }
+    }
+    
+    async downloadModel(missing, url) {
+        console.log("⬇️ Downloading model:", missing, url);
+        
+        if (!url || url.trim() === '') {
+            alert('Please enter a download URL');
+            return;
+        }
+        
+        try {
+            // Generate download ID
+            const downloadId = `dl-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Start download
+            const downloadUrl = `${api.api_base}/model_linker/download`;
+            const response = await fetch(downloadUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    url: url.trim(),
+                    category: missing.category || 'checkpoints',
+                    filename: missing.original_path,
+                    download_id: downloadId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Store download ID for this missing model
+                missing._downloadId = downloadId;
+                
+                // Start polling for progress
+                this.pollDownloadProgress(missing);
+                
+                console.log("⬇️ Download started:", data);
+            } else {
+                alert('Failed to start download: ' + (data.error || 'Unknown error'));
+            }
+            
+        } catch (error) {
+            console.error('⬇️ Download error:', error);
+            alert('Error starting download: ' + error.message);
+        }
+    }
+    
+    async cancelDownload(missing) {
+        if (!missing._downloadId) {
+            return;
+        }
+        
+        try {
+            const cancelUrl = `${api.api_base}/model_linker/download/${missing._downloadId}/cancel`;
+            const response = await fetch(cancelUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log("⬇️ Download cancelled");
+                
+                // Stop polling
+                if (missing._pollInterval) {
+                    clearInterval(missing._pollInterval);
+                    missing._pollInterval = null;
+                }
+                
+                // Hide progress bar
+                const progressId = `progress-${missing.node_id}-${missing.widget_index || 0}`;
+                const progressContainer = this.contentElement.querySelector(`#${progressId}`);
+                if (progressContainer) {
+                    progressContainer.style.display = 'none';
+                }
+                
+                alert('Download cancelled');
+            }
+            
+        } catch (error) {
+            console.error('⬇️ Cancel error:', error);
+            alert('Error cancelling download: ' + error.message);
+        }
+    }
+    
+    async pollDownloadProgress(missing) {
+        if (!missing._downloadId) {
+            return;
+        }
+        
+        // Poll every 500ms
+        missing._pollInterval = setInterval(async () => {
+            try {
+                const progressUrl = `${api.api_base}/model_linker/download/${missing._downloadId}/progress`;
+                const response = await fetch(progressUrl);
+                const data = await response.json();
+                
+                if (data.status === 'downloading') {
+                    // Update progress bar
+                    this.updateDownloadProgress(missing.node_id, missing.widget_index, data.progress);
+                } else if (data.status === 'completed') {
+                    // Stop polling
+                    clearInterval(missing._pollInterval);
+                    missing._pollInterval = null;
+                    
+                    // Update progress to 100%
+                    this.updateDownloadProgress(missing.node_id, missing.widget_index, {
+                        downloaded: data.result.size,
+                        total: data.result.size,
+                        percent: 100
+                    });
+                    
+                    // Show success message
+                    alert(`✓ Model downloaded successfully!\n${data.result.path}`);
+                    
+                    // Reload dialog to show updated status
+                    this.loadWorkflowData();
+                } else if (data.status === 'failed') {
+                    // Stop polling
+                    clearInterval(missing._pollInterval);
+                    missing._pollInterval = null;
+                    
+                    alert('Download failed: ' + (data.error || 'Unknown error'));
+                }
+                
+            } catch (error) {
+                console.error('⬇️ Progress poll error:', error);
+                // Don't alert on every poll error, just log it
+            }
+        }, 500);
     }
     
     async autoResolve100Percent() {

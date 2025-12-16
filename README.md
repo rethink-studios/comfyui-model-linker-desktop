@@ -82,6 +82,19 @@ This fork adds **ComfyUI Desktop compatibility** with major enhancements:
 
 4. You should see a draggable "🔗 Model Linker" button in the top-right corner
 
+### Updating to Latest Version
+
+**Quick Update (Windows):**
+1. Double-click `UPDATE.bat` in the Model Linker folder
+2. Wait for the update to complete
+3. Restart ComfyUI Desktop
+
+**Manual Update:**
+```bash
+cd C:\ComfyUIData\custom_nodes\comfyui-model-linker
+git pull origin main
+```
+
 ### For Standard ComfyUI
 
 1. Navigate to your ComfyUI custom nodes directory:

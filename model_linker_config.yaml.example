@@ -1,0 +1,48 @@
+# Model Linker Configuration File
+# Copy this file to model_linker_config.yaml and customize for your setup
+
+# Additional directories to scan for models
+# These will be scanned recursively for model files
+# Supports both absolute paths and paths relative to this config file
+additional_directories:
+  # Example: Scan an external drive
+  # - "D:\Models\Checkpoints"
+  
+  # Example: Scan a network drive
+  # - "\\\\server\models"
+  
+  # Example: Scan a specific folder
+  # - "C:\MyCustomModels"
+  
+  # Example: Relative path (relative to ComfyUI base directory)
+  # - "models/custom_checkpoints"
+
+# Cache settings
+cache:
+  # Enable model cache (recommended: true)
+  # Cache stores model locations for faster lookups
+  enabled: true
+  
+  # Cache file location (relative to ComfyUI user directory)
+  # Default: model_linker_cache.json
+  filename: "model_linker_cache.json"
+  
+  # Auto-refresh cache on startup (true) or only on manual refresh (false)
+  auto_refresh: true
+  
+  # Cache refresh interval in hours (0 = refresh every startup)
+  # Set to 24 to refresh once per day
+  refresh_interval_hours: 0
+
+# Scanning options
+scanning:
+  # Maximum depth for recursive scanning (0 = unlimited)
+  # Set lower if you have very deep directory structures
+  max_depth: 0
+  
+  # Follow symbolic links (true) or skip them (false)
+  follow_symlinks: true
+  
+  # Skip hidden directories (directories starting with .)
+  skip_hidden: true
+

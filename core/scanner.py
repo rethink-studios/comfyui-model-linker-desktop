@@ -2,6 +2,7 @@
 Directory Scanner Module
 
 Scans configured model directories and finds available model files.
+Uses cache system for faster lookups and cross-drive model discovery.
 """
 
 import os
@@ -55,11 +56,10 @@ def get_model_directories() -> Dict[str, Tuple[List[str], set]]:
     
     import os
     
-    # Try to find extra_models_config.yaml in common locations
-    config_paths = [
-        os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "ComfyUI", "extra_models_config.yaml"),
-        os.path.join(os.path.expanduser("~"), ".config", "ComfyUI", "extra_models_config.yaml"),
-    ]
+    # Use dynamic config loader to find extra_models_config.yaml (no hardcoded paths)
+    from .config_loader import find_extra_models_config
+    extra_config_path = find_extra_models_config()
+    config_paths = [str(extra_config_path)] if extra_config_path else []
     
     # Also check if folder_paths has a method to get extra paths
     if hasattr(folder_paths, 'get_extra_model_paths'):
@@ -187,18 +187,33 @@ def scan_directory(directory: str, extensions: set, category: str) -> List[Dict[
     return models
 
 
-def scan_all_directories() -> List[Dict[str, str]]:
+def scan_all_directories(use_cache: bool = True) -> List[Dict[str, str]]:
     """
     Scan all configured model directories and return list of available models.
+    Optionally uses cache for faster lookups and cross-drive discovery.
+    
+    Args:
+        use_cache: If True, merge with cached models for better coverage
     
     Returns:
         List of dictionaries with model information (same format as scan_directory)
     """
+    from .config_loader import load_config, get_additional_directories
+    from .cache import should_refresh_cache, get_cached_models, merge_models_with_cache, save_cache
+    
+    # Load configuration
+    config = load_config()
+    
+    # Get additional directories from config
+    additional_dirs = get_additional_directories(config)
+    
+    # Get base directories from folder_paths
     all_models = []
     directories = get_model_directories()
     
     logging.info(f"Model Linker: Scanning {len(directories)} model categories")
     
+    # Scan standard directories
     for category, (paths, extensions) in directories.items():
         # Skip categories that aren't typically model directories
         if category in ['custom_nodes', 'configs']:
@@ -217,18 +232,49 @@ def scan_all_directories() -> List[Dict[str, str]]:
             except Exception as e:
                 logging.warning(f"Model Linker: Error scanning {category} directory {directory_path}: {e}")
     
-    logging.info(f"Model Linker: Total models found: {len(all_models)}")
+    # Scan additional directories from config (treat as checkpoints by default)
+    if additional_dirs:
+        logging.info(f"Model Linker: Scanning {len(additional_dirs)} additional directories")
+        for add_dir in additional_dirs:
+            try:
+                # Scan as checkpoints category (most common)
+                # Users can organize subdirectories if needed
+                models = scan_directory(add_dir, MODEL_EXTENSIONS, 'checkpoints')
+                all_models.extend(models)
+                logging.info(f"Model Linker: Found {len(models)} models in additional directory -> {add_dir}")
+            except Exception as e:
+                logging.warning(f"Model Linker: Error scanning additional directory {add_dir}: {e}")
+    
+    logging.info(f"Model Linker: Total models found in scan: {len(all_models)}")
+    
+    # Use cache if enabled
+    if use_cache and config.get('cache', {}).get('enabled', True):
+        cached_models = get_cached_models()
+        if cached_models:
+            logging.info(f"Model Linker: Merging with {len(cached_models)} cached models")
+            all_models = merge_models_with_cache(all_models, cached_models)
+            logging.info(f"Model Linker: Total models after cache merge: {len(all_models)}")
+        
+        # Save cache if refresh is needed
+        if should_refresh_cache(config):
+            logging.info("Model Linker: Refreshing cache...")
+            save_cache(all_models, {'scan_duration': 'N/A'})
+    
     return all_models
 
 
-def get_model_files() -> List[Dict[str, str]]:
+def get_model_files(use_cache: bool = True) -> List[Dict[str, str]]:
     """
     Get list of all available model files with metadata.
     
     This is the main entry point for getting model files.
+    Uses cache by default for faster lookups and cross-drive discovery.
+    
+    Args:
+        use_cache: If True, use cache system for better model discovery
     
     Returns:
         List of model dictionaries (same format as scan_directory)
     """
-    return scan_all_directories()
+    return scan_all_directories(use_cache=use_cache)
 

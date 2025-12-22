@@ -40,6 +40,8 @@ This fork adds **ComfyUI Desktop compatibility** with major enhancements:
 - 🔧 **Fixed API Routing**: Proper URL handling for Desktop's architecture
 - 💾 **Position Memory**: Button position saves across sessions
 - 🔍 **Enhanced Logging**: Better debugging support for Desktop environment
+- 💾 **Model Cache System**: Caches model locations for faster lookups and cross-drive discovery
+- 📁 **Custom Directory Support**: Add your own directories to scan via config file
 
 ## Features
 

@@ -114,11 +114,32 @@ def register_api_routes():
     async def get_models(request):
         """Get list of all available models."""
         try:
-            models = get_model_files()
+            # Check if cache refresh is requested
+            use_cache = request.query.get('use_cache', 'true').lower() != 'false'
+            models = get_model_files(use_cache=use_cache)
             return web.json_response(models)
         except Exception as e:
             logger.error(f"Model Linker get_models error: {e}", exc_info=True)
             return web.json_response({'error': str(e)}, status=500)
+    
+    async def refresh_cache(request):
+        """Force refresh the model cache."""
+        try:
+            from .core.scanner import scan_all_directories
+            from .core.cache import save_cache
+            
+            logger.info("Model Linker: Manual cache refresh requested")
+            models = scan_all_directories(use_cache=False)
+            save_cache(models, {'manual_refresh': True})
+            
+            return web.json_response({
+                'success': True,
+                'models_found': len(models),
+                'message': f'Cache refreshed with {len(models)} models'
+            })
+        except Exception as e:
+            logger.error(f"Model Linker refresh_cache error: {e}", exc_info=True)
+            return web.json_response({'error': str(e), 'success': False}, status=500)
     
     async def health_check(request):
         """Health check endpoint to verify Model Linker is running."""
@@ -298,9 +319,10 @@ def register_api_routes():
         app.router.add_post('/model_linker/resolve', resolve_models)
         app.router.add_get('/model_linker/models', get_models)
         app.router.add_get('/model_linker/health', health_check)
+        app.router.add_post('/model_linker/cache/refresh', refresh_cache)
         app.router.add_post('/model_linker/download', download_model)
         app.router.add_get('/model_linker/download/{download_id}/progress', get_download_progress)
-        app.router.add_post('/model_linker/download/{download_id}/cancel', cancel_download)
+        app.router.add_post('/model_linker/download/{id}/cancel', cancel_download)
         
         _routes_registered = True
         logger.info("✓ Model Linker: API routes registered successfully!")

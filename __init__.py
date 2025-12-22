@@ -112,25 +112,25 @@ def register_api_routes():
             return web.json_response({'error': str(e), 'success': False}, status=500)
     
     async def get_models(request):
-        """Get list of all available models."""
+        """Get list of all available models. Uses in-memory cache for speed."""
         try:
             # Check if cache refresh is requested
             use_cache = request.query.get('use_cache', 'true').lower() != 'false'
-            models = get_model_files(use_cache=use_cache)
+            force_refresh = request.query.get('refresh', 'false').lower() == 'true'
+            models = get_model_files(use_cache=use_cache, force_refresh=force_refresh)
             return web.json_response(models)
         except Exception as e:
             logger.error(f"Model Linker get_models error: {e}", exc_info=True)
             return web.json_response({'error': str(e)}, status=500)
     
     async def refresh_cache(request):
-        """Force refresh the model cache."""
+        """Force refresh the in-memory model cache."""
         try:
-            from .core.scanner import scan_all_directories
-            from .core.cache import save_cache
+            from .core.scanner import clear_model_cache, get_model_files
             
             logger.info("Model Linker: Manual cache refresh requested")
-            models = scan_all_directories(use_cache=False)
-            save_cache(models, {'manual_refresh': True})
+            clear_model_cache()
+            models = get_model_files(use_cache=True, force_refresh=True)
             
             return web.json_response({
                 'success': True,

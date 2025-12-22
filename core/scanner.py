@@ -7,6 +7,7 @@ Uses cache system for faster lookups and cross-drive model discovery.
 
 import os
 import logging
+import time
 from typing import List, Dict, Tuple
 
 # Import folder_paths lazily - it may not be available until ComfyUI is initialized
@@ -187,19 +188,15 @@ def scan_directory(directory: str, extensions: set, category: str) -> List[Dict[
     return models
 
 
-def scan_all_directories(use_cache: bool = True) -> List[Dict[str, str]]:
+def scan_all_directories() -> List[Dict[str, str]]:
     """
     Scan all configured model directories and return list of available models.
-    Optionally uses cache for faster lookups and cross-drive discovery.
-    
-    Args:
-        use_cache: If True, merge with cached models for better coverage
+    This performs a full scan - use get_model_files() for cached access.
     
     Returns:
         List of dictionaries with model information (same format as scan_directory)
     """
     from .config_loader import load_config, get_additional_directories
-    from .cache import should_refresh_cache, get_cached_models, merge_models_with_cache, save_cache
     
     # Load configuration
     config = load_config()
@@ -245,21 +242,7 @@ def scan_all_directories(use_cache: bool = True) -> List[Dict[str, str]]:
             except Exception as e:
                 logging.warning(f"Model Linker: Error scanning additional directory {add_dir}: {e}")
     
-    logging.info(f"Model Linker: Total models found in scan: {len(all_models)}")
-    
-    # Use cache if enabled
-    if use_cache and config.get('cache', {}).get('enabled', True):
-        cached_models = get_cached_models()
-        if cached_models:
-            logging.info(f"Model Linker: Merging with {len(cached_models)} cached models")
-            all_models = merge_models_with_cache(all_models, cached_models)
-            logging.info(f"Model Linker: Total models after cache merge: {len(all_models)}")
-        
-        # Save cache if refresh is needed
-        if should_refresh_cache(config):
-            logging.info("Model Linker: Refreshing cache...")
-            save_cache(all_models, {'scan_duration': 'N/A'})
-    
+    logging.info(f"Model Linker: Total models found: {len(all_models)}")
     return all_models
 
 

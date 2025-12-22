@@ -44,18 +44,26 @@ def get_model_directories() -> Dict[str, Tuple[List[str], set]]:
     
     # Also check for extra_model_paths.yaml to ensure we get all configured paths
     # This is important for ComfyUI Desktop which uses extra_models_config.yaml
+    # ComfyUI's folder_paths should already load these, but we double-check to be sure
     try:
         import yaml
-        import os
-        
-        # Try to find extra_models_config.yaml in common locations
-        config_paths = [
-            os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "ComfyUI", "extra_models_config.yaml"),
-            os.path.join(os.path.expanduser("~"), ".config", "ComfyUI", "extra_models_config.yaml"),
-        ]
-        
-        # Also check if folder_paths has a method to get extra paths
-        if hasattr(folder_paths, 'get_extra_model_paths'):
+    except ImportError:
+        # PyYAML not available - folder_paths should have already loaded the paths
+        # If not, we'll rely on what folder_paths provides
+        logging.debug("Model Linker: PyYAML not available, using folder_paths paths only")
+        return directories
+    
+    import os
+    
+    # Try to find extra_models_config.yaml in common locations
+    config_paths = [
+        os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "ComfyUI", "extra_models_config.yaml"),
+        os.path.join(os.path.expanduser("~"), ".config", "ComfyUI", "extra_models_config.yaml"),
+    ]
+    
+    # Also check if folder_paths has a method to get extra paths
+    if hasattr(folder_paths, 'get_extra_model_paths'):
+        try:
             extra_paths = folder_paths.get_extra_model_paths()
             if extra_paths:
                 for category, paths in extra_paths.items():
@@ -63,44 +71,50 @@ def get_model_directories() -> Dict[str, Tuple[List[str], set]]:
                         # Merge paths, avoiding duplicates
                         existing_paths, extensions = directories[category]
                         for path in paths:
-                            if path not in existing_paths:
-                                existing_paths.append(path)
+                            abs_path = os.path.abspath(path) if not os.path.isabs(path) else path
+                            if abs_path not in existing_paths:
+                                existing_paths.append(abs_path)
+                                logging.debug(f"Model Linker: Added extra path from folder_paths: {category} -> {abs_path}")
                     else:
                         # New category
-                        directories[category] = (paths, set())
-        
-        # Try to load from YAML file directly
-        for config_path in config_paths:
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = yaml.safe_load(f)
-                        if config:
-                            for config_name, config_data in config.items():
-                                if isinstance(config_data, dict) and 'base_path' in config_data:
-                                    base_path = config_data.get('base_path', '')
-                                    if base_path and os.path.exists(base_path):
-                                        # Process each category in this config
-                                        for category, rel_path in config_data.items():
-                                            if category != 'base_path' and category != 'is_default':
+                        directories[category] = ([os.path.abspath(p) if not os.path.isabs(p) else p for p in paths], set())
+        except Exception as e:
+            logging.debug(f"Model Linker: Error getting extra paths from folder_paths: {e}")
+    
+    # Try to load from YAML file directly as backup
+    for config_path in config_paths:
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    if config:
+                        for config_name, config_data in config.items():
+                            if isinstance(config_data, dict) and 'base_path' in config_data:
+                                base_path = os.path.abspath(config_data.get('base_path', ''))
+                                if base_path and os.path.exists(base_path):
+                                    # Process each category in this config
+                                    for category, rel_path in config_data.items():
+                                        if category != 'base_path' and category != 'is_default' and isinstance(rel_path, str):
+                                            # Handle both relative and absolute paths
+                                            if os.path.isabs(rel_path):
+                                                full_path = rel_path
+                                            else:
                                                 full_path = os.path.join(base_path, rel_path)
-                                                if os.path.exists(full_path):
-                                                    # Add to directories
-                                                    if category in directories:
-                                                        existing_paths, extensions = directories[category]
-                                                        if full_path not in existing_paths:
-                                                            existing_paths.append(full_path)
-                                                            logging.debug(f"Added extra path: {category} -> {full_path}")
-                                                    else:
-                                                        directories[category] = ([full_path], set())
-                except Exception as e:
-                    logging.debug(f"Could not load extra_models_config.yaml from {config_path}: {e}")
-                break  # Only try first existing file
-    except ImportError:
-        # yaml not available, skip extra config loading
-        pass
-    except Exception as e:
-        logging.debug(f"Error loading extra model paths: {e}")
+                                            
+                                            full_path = os.path.abspath(full_path)
+                                            if os.path.exists(full_path):
+                                                # Add to directories
+                                                if category in directories:
+                                                    existing_paths, extensions = directories[category]
+                                                    if full_path not in existing_paths:
+                                                        existing_paths.append(full_path)
+                                                        logging.info(f"Model Linker: Added path from extra_models_config.yaml: {category} -> {full_path}")
+                                                else:
+                                                    directories[category] = ([full_path], set())
+                                                    logging.info(f"Model Linker: Added new category from extra_models_config.yaml: {category} -> {full_path}")
+            except Exception as e:
+                logging.debug(f"Model Linker: Could not load extra_models_config.yaml from {config_path}: {e}")
+            break  # Only try first existing file
     
     return directories
 

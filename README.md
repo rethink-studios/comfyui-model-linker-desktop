@@ -211,9 +211,50 @@ When you resolve a model:
 
 ## Configuration
 
+### Custom Directories & Cache
+
+Model Linker supports custom directories and a cache system for better model discovery:
+
+#### Adding Custom Directories
+
+1. Copy `model_linker_config.yaml.example` to `model_linker_config.yaml` in:
+   - Your ComfyUI user directory (recommended), OR
+   - The Model Linker directory (`C:\ComfyUIData\custom_nodes\comfyui-model-linker\`)
+
+2. Edit `model_linker_config.yaml` and add your directories:
+```yaml
+additional_directories:
+  - "D:\MyModels\Checkpoints"           # External drive
+  - "\\\\server\models"                 # Network drive
+  - "C:\CustomModels"                   # Local directory
+```
+
+3. Restart ComfyUI Desktop
+
+#### Model Cache System
+
+Model Linker automatically caches model locations for:
+- ⚡ **Faster lookups** - No need to rescan every time
+- 🔍 **Cross-drive discovery** - Finds models even if drives are temporarily unavailable
+- 💾 **Persistent storage** - Cache survives restarts
+
+**Cache Location:** `[ComfyUI User Directory]/model_linker_cache.json`
+
+**Cache Settings** (in `model_linker_config.yaml`):
+```yaml
+cache:
+  enabled: true                    # Enable/disable cache
+  auto_refresh: true              # Refresh on startup
+  refresh_interval_hours: 24      # Auto-refresh every 24 hours (0 = every startup)
+```
+
+**Manual Cache Refresh:**
+- Use the API endpoint: `POST /model_linker/cache/refresh`
+- Or restart ComfyUI (if `auto_refresh: true`)
+
 ### Model Paths
 
-Model Linker automatically scans all configured model directories in ComfyUI. To add additional directories:
+Model Linker automatically scans all configured model directories in ComfyUI. To add additional directories via ComfyUI's config:
 
 1. Edit your `extra_model_paths.yaml` file
 2. Add your custom model directories
@@ -227,6 +268,8 @@ your_models:
   loras: loras
   vae: vae
 ```
+
+**Note:** Model Linker will automatically find and use `extra_model_paths.yaml` - no hardcoded paths!
 
 ## Troubleshooting
 
@@ -292,8 +335,10 @@ comfyui-model-linker/
 **Model Matching & Resolution:**
 - `POST /model_linker/analyze` - Analyze workflow for missing models
 - `POST /model_linker/resolve` - Apply model resolutions
-- `GET /model_linker/models` - List all available models
+- `GET /model_linker/models` - List all available models (uses cache by default)
+  - Query param: `?use_cache=false` to force fresh scan
 - `GET /model_linker/health` - Health check
+- `POST /model_linker/cache/refresh` - Force refresh model cache
 
 **Download Functionality:** 🆕
 - `POST /model_linker/download` - Start model download

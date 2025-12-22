@@ -246,18 +246,49 @@ def scan_all_directories() -> List[Dict[str, str]]:
     return all_models
 
 
-def get_model_files(use_cache: bool = True) -> List[Dict[str, str]]:
+# In-memory cache for models (built on first use, persists for session)
+_model_cache = None
+_cache_timestamp = 0
+
+
+def get_model_files(use_cache: bool = True, force_refresh: bool = False) -> List[Dict[str, str]]:
     """
     Get list of all available model files with metadata.
     
     This is the main entry point for getting model files.
-    Uses cache by default for faster lookups and cross-drive discovery.
+    Uses in-memory cache by default - scans once per session, then reuses.
     
     Args:
-        use_cache: If True, use cache system for better model discovery
+        use_cache: If True, use in-memory cache (scans once, then reuses)
+        force_refresh: If True, force a fresh scan even if cache exists
     
     Returns:
         List of model dictionaries (same format as scan_directory)
     """
-    return scan_all_directories(use_cache=use_cache)
+    global _model_cache, _cache_timestamp
+    
+    # If cache exists and not forcing refresh, return cached models
+    if use_cache and _model_cache is not None and not force_refresh:
+        logging.debug(f"Model Linker: Using in-memory cache ({len(_model_cache)} models)")
+        return _model_cache
+    
+    # Scan all directories (this may take a moment on first use)
+    logging.info("Model Linker: Scanning directories for models...")
+    models = scan_all_directories()
+    
+    # Store in memory cache
+    if use_cache:
+        _model_cache = models
+        _cache_timestamp = time.time()
+        logging.info(f"Model Linker: Cached {len(models)} models in memory")
+    
+    return models
+
+
+def clear_model_cache():
+    """Clear the in-memory model cache (forces fresh scan on next call)."""
+    global _model_cache, _cache_timestamp
+    _model_cache = None
+    _cache_timestamp = 0
+    logging.info("Model Linker: Cleared in-memory cache")
 

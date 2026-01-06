@@ -70,7 +70,12 @@ def get_model_directories() -> Dict[str, Tuple[List[str], set]]:
                 for category, paths in extra_paths.items():
                     if category in directories:
                         # Merge paths, avoiding duplicates
-                        existing_paths, extensions = directories[category]
+                        data = directories[category]
+                        if isinstance(data, (list, tuple)) and len(data) >= 2:
+                            existing_paths = data[0]
+                        else:
+                            continue
+                            
                         for path in paths:
                             abs_path = os.path.abspath(path) if not os.path.isabs(path) else path
                             if abs_path not in existing_paths:
@@ -106,9 +111,11 @@ def get_model_directories() -> Dict[str, Tuple[List[str], set]]:
                                             if os.path.exists(full_path):
                                                 # Add to directories
                                                 if category in directories:
-                                                    existing_paths, extensions = directories[category]
-                                                    if full_path not in existing_paths:
-                                                        existing_paths.append(full_path)
+                                                    data = directories[category]
+                                                    if isinstance(data, (list, tuple)) and len(data) >= 2:
+                                                        existing_paths = data[0]
+                                                        if full_path not in existing_paths:
+                                                            existing_paths.append(full_path)
                                                         logging.info(f"Model Linker: Added path from extra_models_config.yaml: {category} -> {full_path}")
                                                 else:
                                                     directories[category] = ([full_path], set())
@@ -211,7 +218,14 @@ def scan_all_directories() -> List[Dict[str, str]]:
     logging.info(f"Model Linker: Scanning {len(directories)} model categories")
     
     # Scan standard directories
-    for category, (paths, extensions) in directories.items():
+    for category, data in directories.items():
+        # Handle potential unpacking issues if tuple size changes
+        if not isinstance(data, (list, tuple)) or len(data) < 2:
+            continue
+            
+        paths = data[0]
+        extensions = data[1]
+
         # Skip categories that aren't typically model directories
         if category in ['custom_nodes', 'configs']:
             continue
